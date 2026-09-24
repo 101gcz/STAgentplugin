@@ -1,0 +1,493 @@
+/* ============================================================
+   五号预设Agent插件 — 样式
+   两个部分：
+     1. #dro-root    悬浮窗（收起态 = 36px 竖条；展开态 = 完整设置面板）
+     2. #dro-settings 酒馆扩展设置区里的入口小卡片
+   ============================================================ */
+
+/* ---------- 0. 公共排版（面板 + 卡片共用） ---------- */
+
+/**
+ * 防竖排兜底。
+ * writing-mode 是「可继承」属性：万一页面上有别的样式（用户自定义 CSS、
+ * 别的扩展注入的规则）在祖先元素上设了竖排，我们的界面会被一起带竖。
+ * 这里明确把「插件自己的界面」钉成横排。
+ * 唯一例外是收起态竖条上的「大纲」两个字 —— 那是特意竖排的（省宽度），
+ * 它是叶子元素、自带更高优先级的选择器，不受下面这两行影响。
+ */
+#dro-root {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+}
+
+#dro-panel,
+#dro-panel *,
+#dro-settings,
+#dro-settings * {
+    writing-mode: horizontal-tb;
+}
+
+/**
+ * 修「按钮文字变成竖排」。
+ *
+ * 症状：悬浮窗里所有 .menu_button 的中文一字一行，看着就像竖排。
+ * 根因跟 writing-mode 无关（上面几行已经钉成横排了），在酒馆自己的
+ * public/style.css:3818-3834：
+ *
+ *     .menu_button { width: min-content; display: flex; ... }
+ *
+ * min-content 对英文还算安全（最长的那个单词就是宽度下限），
+ * 但中日韩文字默认「任意两个字之间都能断行」，于是 min-content 被算成
+ * 「一个字」的宽度 —— 盒子被压成 1 字宽，文字只能一行一个字往下叠。
+ * 修法就一句：把宽度从 min-content 改回 auto，并且不许换行。
+ *
+ * 选择器带 id，优先级 (1,1,0) 高于酒馆的 .menu_button (0,1,0)，
+ * 而且本文件在酒馆样式之后加载，两道保险。
+ * 注意 #dro-settings 那张卡片在酒馆扩展设置区里（不在 #dro-root 内），
+ * 所以两个容器都要写。
+ */
+#dro-root .menu_button,
+#dro-settings .menu_button {
+    width: auto;
+    min-width: max-content;   /* 宽度下限 = 整条标签，永远不会缩回「一个字」 */
+    white-space: nowrap;      /* 不换行 = 不会一行一个字 */
+    flex: none;               /* 在 .dro-btnrow / .dro-inline 里不被 flex 压扁 */
+}
+
+#dro-settings .dro-sec,
+#dro-root .dro-sec {
+    margin: 12px 0 4px;
+    font-weight: 600;
+    opacity: 0.85;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #3a4050);
+    padding-bottom: 3px;
+}
+
+#dro-settings .dro-hint,
+#dro-root .dro-hint {
+    font-size: 0.88em;
+    opacity: 0.72;
+    margin: 2px 0 6px;
+    line-height: 1.55;
+}
+
+#dro-settings .dro-btnrow,
+#dro-root .dro-btnrow {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 8px 0 2px;
+}
+
+#dro-settings .dro-badge,
+#dro-root .dro-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 0.85em;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+#dro-settings .dro-badge.ok,
+#dro-root .dro-badge.ok   { background: rgba(123, 216, 143, 0.2); color: #7bd88f; }
+#dro-settings .dro-badge.warn,
+#dro-root .dro-badge.warn { background: rgba(232, 196, 106, 0.2); color: #e8c46a; }
+#dro-settings .dro-badge.err,
+#dro-root .dro-badge.err  { background: rgba(255, 138, 138, 0.2); color: #ff8a8a; }
+#dro-settings .dro-badge.idle,
+#dro-root .dro-badge.idle { background: rgba(150, 150, 150, 0.2); opacity: 0.8; }
+
+#dro-settings .dro-cap-ok,
+#dro-root .dro-cap-ok  { color: #7bd88f; }
+#dro-settings .dro-cap-no,
+#dro-root .dro-cap-no  { color: #ff8a8a; }
+#dro-settings .dro-cap-req,
+#dro-root .dro-cap-req { font-weight: 600; }
+
+/* 「关于」页的环境自检清单：一行内自动折行的胶囊，不再一项占一行 */
+#dro-root .dro-cap {
+    display: inline-block;
+    margin: 2px 10px 2px 0;
+    font-size: 0.92em;
+}
+
+/* ---------- 1. 悬浮窗根容器 ---------- */
+
+#dro-root {
+    position: fixed;
+    /* z-index 的取法：
+       酒馆的抽屉是 3005（style.css:766/5459），
+       酒馆的弹出菜单/确认框是 29999（style.css:1085 .popper-modal）。
+       所以取 29000 —— 压得住抽屉，又不会盖住酒馆自己的弹窗。 */
+    z-index: 29000;
+    font-size: 12px;
+    line-height: 1.5;
+    user-select: none;
+}
+
+#dro-root.dro-dragging,
+#dro-root.dro-dragging * {
+    cursor: grabbing !important;
+}
+
+/* ---------- 1.1 收起态：竖条 ---------- */
+
+#dro-bar {
+    width: 36px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0;
+    border-radius: 9px;
+    border: 1px solid var(--SmartThemeBorderColor, #3a4050);
+    background: var(--SmartThemeBlurTintColor, #1c1f27);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+    touch-action: none;
+}
+
+#dro-bar:hover {
+    border-color: var(--SmartThemeQuoteColor, #6aa6ff);
+}
+
+#dro-bar .dro-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #6b7280;
+    flex: none;
+}
+
+#dro-bar .dro-dot.run  { background: #38bdf8; animation: dro-blink 1s ease-in-out infinite; }
+#dro-bar .dro-dot.ok   { background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+#dro-bar .dro-dot.fail { background: #f87171; box-shadow: 0 0 8px #f87171; }
+#dro-bar .dro-dot.skip { background: #fbbf24; }
+
+@keyframes dro-blink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.2; }
+}
+
+#dro-bar .dro-bar-txt {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    letter-spacing: 2px;
+    opacity: 0.75;
+    padding: 2px 0;
+}
+
+#dro-bar .dro-bar-btn {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    opacity: 0.7;
+    cursor: pointer;
+    flex: none;
+}
+
+#dro-bar .dro-bar-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    opacity: 1;
+}
+
+/* ---------- 1.2 展开态：面板 ---------- */
+
+/**
+ * 兜底（选择器刻意写成两个 id，优先级高于绝大多数外部规则）：
+ *   · flex-direction: column —— 万一被别处规则改成 row，面板就会变成
+ *     「标题栏 / 标签栏 / 正文」挤在一行，正文被压成一条 → 看起来像竖排
+ *   · min-width —— 万一内联尺寸没设上（脚本异常、配置丢了），
+ *     面板也不会被压到只剩几个像素宽，文字不会变成一行一个字
+ */
+#dro-root #dro-panel {
+    flex-direction: column;
+    min-width: 320px;
+    box-sizing: border-box;
+}
+
+#dro-root #dro-panel-body {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#dro-panel {
+    position: relative;
+    display: none;                /* JS 负责 flex / none */
+    flex-direction: column;
+    border: 1px solid var(--SmartThemeBorderColor, #3a4050);
+    border-radius: 10px;
+    background: var(--SmartThemeBlurTintColor, #1c1f27);
+    color: var(--SmartThemeBodyColor, #e6e6e6);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+}
+
+#dro-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #3a4050);
+    background: rgba(0, 0, 0, 0.18);
+    cursor: move;
+    touch-action: none;
+    flex: none;
+}
+
+#dro-panel-head .dro-panel-title {
+    flex: 1;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#dro-panel-head .dro-panel-tools {
+    display: flex;
+    gap: 2px;
+    flex: none;
+}
+
+.dro-tool {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    cursor: pointer;
+    opacity: 0.75;
+    font-size: 13px;
+}
+
+.dro-tool:hover {
+    background: rgba(255, 255, 255, 0.12);
+    opacity: 1;
+}
+
+#dro-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 4px 6px 0;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #3a4050);
+    flex: none;
+}
+
+.dro-tab {
+    padding: 4px 11px;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    opacity: 0.7;
+    font-size: 0.95em;
+    white-space: nowrap;
+}
+
+.dro-tab:hover { opacity: 1; background: rgba(255, 255, 255, 0.07); }
+
+.dro-tab.active {
+    opacity: 1;
+    font-weight: 600;
+    background: rgba(120, 160, 255, 0.16);
+}
+
+#dro-panel-body {
+    flex: 1;
+    overflow: auto;
+    padding: 8px 10px 14px;
+}
+
+#dro-resize {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+    touch-action: none;
+    background: linear-gradient(135deg, transparent 46%, var(--SmartThemeBorderColor, #3a4050) 46%, var(--SmartThemeBorderColor, #3a4050) 60%, transparent 60%);
+}
+
+/* ---------- 1.3 面板里的控件 ---------- */
+
+#dro-panel label {
+    display: block;
+    margin: 6px 0 2px;
+    opacity: 0.9;
+}
+
+#dro-panel label.checkbox_label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 0;
+}
+
+#dro-panel .dro-inline {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+#dro-panel .dro-inline > input,
+#dro-panel .dro-inline > select {
+    flex: 1;
+    min-width: 0;
+}
+
+#dro-panel .dro-inline > .menu_button {
+    flex: none;
+    margin: 0;
+    padding: 3px 9px;
+}
+
+/* 白名单那一行的「统一设为…」：跟搜索框并排，只要它自己那么宽 */
+#dro-panel #dro-wl-bulk-target {
+    flex: none;
+    width: auto;
+}
+
+#dro-panel .dro-grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 10px;
+}
+
+#dro-panel .dro-kv {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 2px 0;
+    border-bottom: 1px dashed var(--SmartThemeBorderColor, #2b303b);
+}
+
+#dro-panel .dro-kv > span:last-child {
+    opacity: 0.85;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+#dro-panel .dro-wl-box {
+    max-height: 300px;
+    overflow: auto;
+    border: 1px solid var(--SmartThemeBorderColor, #3a4050);
+    border-radius: 6px;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.15);
+    margin-top: 6px;
+}
+
+#dro-panel .dro-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 0;
+}
+
+#dro-panel .dro-row > label {
+    flex: 1;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+#dro-panel .dro-row .dro-off {
+    opacity: 0.45;
+    text-decoration: line-through;
+}
+
+#dro-panel .dro-len {
+    flex: none;
+    width: 52px;
+    text-align: right;
+    opacity: 0.6;
+    font-size: 0.9em;
+}
+
+/**
+ * 白名单表格里的分组小标题（「素材」/「预设条目」两段之间）。
+ * 刻意不叫 .dro-row —— 界面上/自检里数行数时只数真正的条目行。
+ */
+#dro-panel .dro-wl-box .dro-row-sec {
+    margin: 10px 0 4px;
+    padding-bottom: 2px;
+    font-weight: 600;
+    font-size: 0.95em;
+    opacity: 0.8;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #3a4050);
+}
+
+#dro-panel .dro-wl-box .dro-row-sec:first-child {
+    margin-top: 0;
+}
+
+#dro-panel .dro-outline-box {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 260px;
+    overflow: auto;
+    border: 1px solid var(--SmartThemeBorderColor, #3a4050);
+    border-radius: 6px;
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.15);
+    line-height: 1.65;
+    font-size: 0.95em;
+}
+
+#dro-panel .dro-log {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.85em;
+    line-height: 1.6;
+    max-height: 60vh;
+    overflow: auto;
+    border: 1px solid var(--SmartThemeBorderColor, #3a4050);
+    border-radius: 6px;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+#dro-panel .dro-log .l-info { opacity: 0.8; }
+#dro-panel .dro-log .l-ok   { color: #7bd88f; }
+#dro-panel .dro-log .l-warn { color: #e8c46a; }
+#dro-panel .dro-log .l-error{ color: #ff8a8a; }
+
+#dro-panel code {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    padding: 0 3px;
+}
+
+/* 高级参数折叠块：默认收起，让「调用」页保持短 */
+#dro-panel .dro-adv {
+    margin: 10px 0 4px;
+    border: 1px solid var(--SmartThemeBorderColor, #3a4050);
+    border-radius: 6px;
+    padding: 4px 8px 6px;
+    background: rgba(0, 0, 0, 0.12);
+}
+
+#dro-panel .dro-adv > summary {
+    cursor: pointer;
+    font-weight: 600;
+    opacity: 0.85;
+    list-style: none;
+}
+
+#dro-panel .dro-adv > summary::-webkit-details-marker {
+    display: none;
+}
+
+#dro-panel .dro-adv > summary::before {
+    content: '▸ ';
+    opacity: 0.7;
+}
+
+#dro-panel .dro-adv[open] > summary::before {
+    content: '▾ ';
+}
