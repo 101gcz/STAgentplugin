@@ -1,0 +1,16 @@
+{
+    "display_name": "四号预设Agent插件",
+    "loading_order": 150,
+    "requires": [],
+    "optional": [
+        "JS-Slash-Runner"
+    ],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "蓝色大肥鱼",
+    "version": "3.9.0",
+    "description": "v3.9.0",
+    "homePage": "",
+    "auto_update": false,
+    "minimum_client_version": "1.12.13"
+}
